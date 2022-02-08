@@ -1,0 +1,375 @@
+---
+title: "Divvy Case Study"
+author: "David Santos"
+date: "19/01/2022"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Abstract
+
+Cyclistic is a bike-share program that features more than 5,800 bicycles and 600 docking stations. Cyclistic sets itself apart by also offering reclining bikes, hand tricycles, and cargo bikes, making bike-share more inclusive to people with disabilities and riders who can’t use a standard two-wheeled bike. The majority of riders opt for traditional bikes; about 8% of riders use the assistive options. Cyclistic users are more likely to ride for leisure, but about 30% use them to commute to work each day.
+
+## Case Study Scenario
+
+I am a junior data analyst working in the marketing analyst team at Cyclistic, a bike-share company in Chicago. The director of marketing believes the company’s future success depends on maximizing the number of annual memberships. Therefore, your team wants to understand how casual riders and annual members use Cyclistic bikes differently. From these insights, your team will design a new marketing strategy to convert casual riders into annual members. But first, Cyclistic executives must approve your recommendations, so they must be backed up with compelling data insights and professional data visualizations.
+
+## Data Source
+
+Data was provided by the Google Data Analytics Professional Certificate program, as part of one of it's capstone projects, from the link: https://divvy-tripdata.s3.amazonaws.com/index.html.
+
+### Setting up my environment and loading the data
+I decided to only use the last 12 months of data available, since it was more reliable, would provide more insights on the actual trends and overall more complete.
+
+```{r, warning= FALSE, message=FALSE}
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(readxl)
+library(dplyr)
+library(ggmap)
+
+
+cyclist_df_1 <- read_excel("C:\\Users\\Dacs\\Documents\\R Working Directory\\Case Study Cyclist\\XLS Files (Datasets)\\202101-divvy-tripdata.xlsx")
+cyclist_df_2 <- read_excel("C:\\Users\\Dacs\\Documents\\R Working Directory\\Case Study Cyclist\\XLS Files (Datasets)\\202102-divvy-tripdata.xlsx")
+cyclist_df_3 <- read_excel("C:\\Users\\Dacs\\Documents\\R Working Directory\\Case Study Cyclist\\XLS Files (Datasets)\\202103-divvy-tripdata.xlsx")
+cyclist_df_4 <- read_excel("C:\\Users\\Dacs\\Documents\\R Working Directory\\Case Study Cyclist\\XLS Files (Datasets)\\202104-divvy-tripdata.xlsx")
+cyclist_df_5 <- read_excel("C:\\Users\\Dacs\\Documents\\R Working Directory\\Case Study Cyclist\\XLS Files (Datasets)\\202105-divvy-tripdata.xlsx")
+cyclist_df_6 <- read_excel("C:\\Users\\Dacs\\Documents\\R Working Directory\\Case Study Cyclist\\XLS Files (Datasets)\\202106-divvy-tripdata.xlsx")
+cyclist_df_7 <- read_excel("C:\\Users\\Dacs\\Documents\\R Working Directory\\Case Study Cyclist\\XLS Files (Datasets)\\202107-divvy-tripdata.xlsx")
+cyclist_df_8 <- read_excel("C:\\Users\\Dacs\\Documents\\R Working Directory\\Case Study Cyclist\\XLS Files (Datasets)\\202108-divvy-tripdata.xlsx")
+cyclist_df_9 <- read_excel("C:\\Users\\Dacs\\Documents\\R Working Directory\\Case Study Cyclist\\XLS Files (Datasets)\\202109-divvy-tripdata.xlsx")
+cyclist_df_10 <- read_excel("C:\\Users\\Dacs\\Documents\\R Working Directory\\Case Study Cyclist\\XLS Files (Datasets)\\202110-divvy-tripdata.xlsx")
+cyclist_df_11 <- read_excel("C:\\Users\\Dacs\\Documents\\R Working Directory\\Case Study Cyclist\\XLS Files (Datasets)\\202111-divvy-tripdata.xlsx")
+cyclist_df_12 <- read_excel("C:\\Users\\Dacs\\Documents\\R Working Directory\\Case Study Cyclist\\XLS Files (Datasets)\\202012-divvy-tripdata.xlsx")
+
+
+Sys.setlocale("LC_TIME", "C")
+```
+
+Joining all the data in one file.
+
+```{r pressure, echo=FALSE}
+cyclist_df <- bind_rows(cyclist_df_1, cyclist_df_2, cyclist_df_3, cyclist_df_4, cyclist_df_5, cyclist_df_6, cyclist_df_7, cyclist_df_8, cyclist_df_9, cyclist_df_10, cyclist_df_11, cyclist_df_12)
+```
+
+Checking out the data.
+
+```{r}
+# Statistical summary of data.
+
+summary(cyclist_df)
+```
+## Understanding and Cleaning Data
+
+I started out by separating the date from "started_at" into year, month and day, along with a new column specifying the day of the week.
+
+```{r}
+# The default format is yyyy-mm-dd
+
+cyclist_df$date <- as.Date(cyclist_df$started_at)
+cyclist_df$month <- format(as.Date(cyclist_df$date), "%m")
+cyclist_df$day <- format(as.Date(cyclist_df$date), "%d")
+cyclist_df$year <- format(as.Date(cyclist_df$date), "%Y")
+cyclist_df$day_of_week <- format(as.Date(cyclist_df$date), "%A")
+```
+
+Dropping NA's
+
+```{r}
+cyclist_df <- drop_na(cyclist_df)
+```
+
+Fixing the ride_length column to show the time in seconds and converting it to numeric.
+
+```{r}
+cyclist_df$ride_length <- difftime(cyclist_df$ended_at, cyclist_df$started_at)
+
+str(cyclist_df$ride_length)
+
+cyclist_df$ride_length <- as.numeric(cyclist_df$ride_length)
+is.numeric(cyclist_df$ride_length)
+```
+
+The data frame includes a few hundred entries when bikes were taken out of docks and checked for quality by Divvy or ride_length was negative.
+
+```{r}
+cyclist_df_v2 <- cyclist_df [!(cyclist_df$start_station_name == 'HQ QR' | cyclist_df$ride_length <0),]
+```
+
+Comparing the nr of entries for casuals and members.
+
+```{r}
+table(cyclist_df_v2$member_casual)
+```
+
+Descriptive statistics for ride_length.
+
+```{r}
+summary(cyclist_df_v2$ride_length)
+```
+
+Compare members and casual users.
+
+```{r}
+aggregate(cyclist_df_v2$ride_length ~ cyclist_df_v2$member_casual, FUN = mean)
+aggregate(cyclist_df_v2$ride_length ~ cyclist_df_v2$member_casual, FUN = median)
+aggregate(cyclist_df_v2$ride_length ~ cyclist_df_v2$member_casual, FUN = max)
+```
+
+See the average ride time by each day for members vs casual users.
+
+```{r}
+aggregate(cyclist_df_v2$ride_length ~ cyclist_df_v2$member_casual + cyclist_df_v2$day_of_week, FUN = mean)
+```
+
+Since the days are out order, I will go ahead and fix that.
+
+```{r}
+cyclist_df_v2$day_of_week <- ordered(cyclist_df_v2$day_of_week, levels=c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"))
+```
+
+Checking if it is fixed.
+
+```{r}
+aggregate(cyclist_df_v2$ride_length ~ cyclist_df_v2$member_casual + cyclist_df_v2$day_of_week, FUN = mean)
+```
+
+Analyze ridership data by type and weekday.
+
+```{r}
+cyclist_df_v2 %>% 
+  # groups by user type and weekday
+  group_by(member_casual, day_of_week) %>%
+  # calculates the number of rides
+  summarise(number_of_rides = n()							
+            # calculates the average duration
+            ,average_duration = mean(ride_length)) %>%
+  # sorts the data
+  arrange(member_casual, day_of_week)
+```
+
+Visualize the previous data.
+
+```{r}
+# Let's visualize the number of rides by rider type
+cyclist_df_v2 %>% 
+  group_by(member_casual, day_of_week) %>%            
+  summarise(number_of_rides = n()                     
+            ,average_duration = mean(ride_length)) %>%
+  arrange(member_casual, day_of_week)  %>%              
+  ggplot() +
+  geom_col(aes(x = day_of_week, y = number_of_rides, fill = member_casual), position = "dodge") + 
+  labs(title = "Number of rides",
+       subtitle="By rider type and day of week",
+       x="Day of the week",
+       y="Number of Rides") + 
+  scale_fill_manual(values = c("casual" = "#DAD992", "member" = "#396EB0")) +
+  theme_minimal()
+```
+
+Next, I will check the Average duration by rider type and day of the week to see on which days people take longer trips. 
+
+```{r}
+cyclist_df_v2 %>% 
+  group_by(member_casual, day_of_week) %>%  
+  summarise(number_of_rides = n()							
+            ,average_duration = mean(ride_length)) %>% 		
+  ggplot() +
+  geom_col(aes(x=day_of_week, y=average_duration, fill=member_casual), position = "dodge") +
+  labs(title = "Average Duration",
+       subtitle="By rider type and day of week",
+       x="Day of the week",
+       y="Average Duration") + 
+  scale_fill_manual(values = c("casual" = "#DAD992", "member" = "#396EB0")) +
+  theme_minimal()
+```
+
+Checking out the number of rides per month.
+
+```{r}
+cyclist_df_v2 %>%
+  # I use this line instead of the column "month" so I can get the name of the month instead of the number.
+  mutate(month = month(started_at, label = TRUE)) %>%  
+  group_by(member_casual, month) %>% 
+  summarise(number_of_rides = n()) %>% 
+  arrange(member_casual, month) %>% 
+  ggplot() +
+  geom_col(aes(x= month, y = number_of_rides, fill = member_casual), position="dodge") + 
+  labs(title = "Number of Rides",
+       subtitle = "Per month",
+       x="Month",
+       y="Number of Rides") + 
+  scale_fill_manual(values = c("casual" = "#DAD992", "member" = "#396EB0")) +
+  theme_minimal()
+```
+
+Next, I will check the Average duration by rider type and month to see on which months people take longer trips.
+
+```{r}
+cyclist_df_v2 %>%
+  mutate(month = month(started_at, label = TRUE)) %>% 
+  group_by(member_casual, month) %>%
+  summarise(average_duration = mean(ride_length)) %>%
+  arrange(member_casual, month) %>%
+  ggplot() +
+  geom_col(aes(x= month, y = average_duration, fill = member_casual), position="dodge") +
+  labs(title = "Average Duration",
+       subtitle = "Per month",
+       fill = "Membership type",
+       x="Month",
+       y="Average Duration") +
+  scale_fill_manual(values = c("casual" = "#DAD992", "member" = "#396EB0")) +
+  theme_minimal()
+```
+
+Creating a sub data set for bike type in order to exclude docked bikes.
+
+```{r}
+bike_type <- cyclist_df_v2 %>% filter(rideable_type=="classic_bike" | rideable_type=="electric_bike")
+```
+
+Now we check the type of bike used by each user type.
+
+```{r}
+bike_type %>%
+  group_by(member_casual,rideable_type) %>%
+  summarise(totals=n())  %>%
+  ggplot()+
+  geom_col(aes(x=member_casual,y=totals,fill=rideable_type), position = "dodge") + 
+  labs(title = "Bike type usage by user type",
+       x="User type",
+       y="Number of Rides",
+       fill="Type of Bike") +
+  scale_fill_manual(values = c("classic_bike" = "#A3DA8D","electric_bike" = "#F3C892")) +
+  theme_minimal()
+```
+
+Next, we use a facet wrap to compare the usage by both user types during a week.
+
+```{r}
+bike_type %>%
+  group_by(member_casual,rideable_type,day_of_week) %>%
+  summarise(totals=n(), .groups="drop") %>%
+  ggplot() +
+  geom_col(aes(x=day_of_week,y=totals, fill=rideable_type), position = "dodge") + 
+  facet_wrap(~member_casual) +
+  labs(title = "Bike type usage",
+       subtitle="By user type during the week",
+       x="User type",
+       y="Number of rides",
+       fill="Type of bike") +
+  scale_fill_manual(values = c("classic_bike" = "#A3DA8D","electric_bike" = "#F3C892")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=0.05))
+```
+
+```{r}
+# Have to change both columns of latitude and both columns of longitude to numeric so it would work as the map's scale.
+
+bike_type$start_lat = as.numeric(bike_type$start_lat)        
+bike_type$start_lng = as.numeric(bike_type$start_lng)
+bike_type$end_lat = as.numeric(bike_type$end_lat)
+bike_type$end_lng = as.numeric(bike_type$end_lng)
+```
+
+```{r, message = FALSE}
+# Selecting the most common routes, otherwise the map would become unreadable with too many routes.
+
+coordinates_table <- bike_type %>% 
+filter(start_lng != end_lng & start_lat != end_lat) %>%
+group_by(start_lng, start_lat, end_lng, end_lat, member_casual, rideable_type) %>%
+summarise(total = n()) %>%
+filter(total > 300)
+
+# Creating a boundary box for the map.
+
+chi_bb <- c(
+  left = -87.70,
+  bottom = 41.77,
+  right = -87.6,
+  top = 41.97
+)
+  
+# Getting Chicago's map with the get_statenmap function from the package ggmap with the boundary box attribute.
+
+chicago_stamen <- get_stamenmap(
+  bbox = chi_bb,
+  zoom = 12,
+  maptype = "toner"
+)
+
+# Then we plot the data on the map.
+
+ggmap(chicago_stamen,darken = c(0.8, "white")) +
+  # Draws the curved lines representing the segments 
+   geom_curve(coordinates_table,                     
+              mapping = aes(x = start_lng,
+                            y = start_lat,
+                            xend = end_lng,
+                            yend = end_lat,
+                            alpha= 0.1,
+                            color=member_casual),
+              size = 0.5,
+              curvature = .2,
+              # We use arrows so we could easily identify where the route starts and ends.
+              arrow = arrow(length=unit(0.2,"cm"),   
+                            ends="last",
+                            type = "closed")) +
+         scale_color_manual(values= c("casual" = "#FC9918", "member" = "#396EB0")) +
+    coord_cartesian() +
+    labs(title = "Most popular routes",
+         subtitle = "By user type",
+         x=NULL,
+         y=NULL,
+         color="User type") +
+    theme(legend.position="none")
+```
+
+As you can see, even showing up only the most common routes, the map has alot of information, so we will divide it by user type.
+
+```{r}
+
+# Then we plot both with the addition of the facet_wrap function.
+
+ggmap(chicago_stamen,darken = c(0.8, "white")) +
+   geom_curve(coordinates_table,                     
+              mapping = aes(x = start_lng,
+                            y = start_lat,
+                            xend = end_lng,
+                            yend = end_lat,
+                            alpha= 0.5,
+                            color=member_casual),
+              size = 0.5,
+              curvature = .2,
+              arrow = arrow(length=unit(0.2,"cm"), 
+                            ends="first",
+                            type = "closed")) +
+  scale_color_manual(values= c("casual" = "#FC9918", "member" = "#396EB0")) +
+  facet_wrap(~member_casual) +
+    coord_cartesian() +
+    labs(title = "Most popular routes",
+         subtitle = "By user type",
+         x=NULL,
+         y=NULL,
+         color="User type") +
+    theme(legend.position="none")
+
+```
+
+## Conclusion
+
+From this analysis we can conclude that on average, casual riders have longer rides than members, and on weekends that increases.
+In the summer months is when bikes get the highest demand, but it curiously, it's on February that the casual member ride the longest on average, I believe this might have something to do with some promotional campaign/promotion at that time.
+Both for casual and member riders, the vehicle of choice is classic bikes. The casuals ride the most of weekends, having a big difference from weekday to weekend, while the members ride evenly throughout the whole week.
+From the last couple of visualizations, we can see that casual members ride mostly in the center of the city, which means they have casual rides for sightseeing around the city's main attractions, and members have longer trajectories, perhaps they ride their bike to work or other places in the outskirts of town regularly, which for them makes sense that they become members if they are planning of using this service several times a month/year.
+
+## Recomendations.
+
+Taking into account that most casual riders ride on weekends, there should some sort of modality of the membership only for weekends and holidays. Again, since casual riders ride mostly in town center, there could be some sort of bike tour guide that could be arranged every once in a while for people to follow along in Divvy bicycles to see the city's main attractions. 
+Casual riders have longer rides, this is information we could use to convince them Divvy's bikes are the best for this usage, explaining why these bikes are the best for long rides due to their comfort and lightness.
